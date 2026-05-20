@@ -1,5 +1,5 @@
 # TMG2SQL
-A Utility to Convert a The Master Genealogist Database into a SQL/Sqlite Database 
+A Utility to Convert a "The Master Genealogist" Database into a SQL/Sqlite Database 
 
 This is a small python utility to convert a TMG Database into a Sqlite database,
 and eventually 
@@ -9,8 +9,8 @@ This repository contains several forms of distribution of this module.
 
 ### Source / Root directory
 In the root directory of this repository are the source file(s) that make up This
-module. I have built it with Python 3.7.3, not sure what version of python is 
-will work on.
+module. I have built it with Python 3.14.5, not sure what versions of python it 
+will work on, but I haven't intentionally used new features.
 
 There is also a build.bat to build the standalone executables (below) which
 don't require the user of the program to have python (or the needed dependencies
@@ -18,29 +18,44 @@ installed). Using the build.bat batch file requires pyinstaller to be installed.
 
 ### Single File Executable /dist directory
 There is a simple executable file, TMG2SQL.exe in the /dist directory of the 
-repository. This file was created with pyinstall, and is a self contained Executable
+repository. This file was created with pyinstall, and is a self-contained Executable
 with all the information to run the program. When run it will extract files into
 a directory in the system temp folder so that it can run. Just place is somewhere
-on your path, and you can use the utility. (I tend to have a /bin directory to place
-such programs).
+on your path, and you can use the utility from the command line, 
+or you can just double click on the executable. 
+(I tend to have a /bin directory to place such programs).
 
 ### Single Directory Distribution /dist/TMG2SQL directory
 This is another version of the module built with pyinstall, but rather than needing
 to expand to a temporary directory, it has all those files already present, so it
 is quicker to run. Place the directory somewhere, and add an entry on your path to 
-it (or put the directory somewhere on the path and run with TMG2SQL/TMG2SQL)
+it (or put the directory somewhere on the path and run with TMG2SQL/TMG2SQL) or again, 
+double click on the TMG2SQL.exe that is in that directory.
+
+### TMG Database Documentatio /docs/
+This is a .rtf document with the TMG database format described.
 
 ## Usage
 ### Program
-**TMG2SQL [foo.pjc]**
-This command will convert the foo.pjc TMG project into a Sqlite database by the 
-same name. If no file is specified, then all TMG projects (or things it sees as
-TMG projects) will be transfered into Sqlite databases.
+Running the program will bring up a screen with some options and controls. 
+On the left are 3 command button, "Open Directory", "Open File" and "Quit"
+
+* Open Directory: This will open up a selection dialog to select a directory, and the
+program will then process all projects in that directory that match the "pattern" specified
+in the box just after the button. If the "Recursive" option below that is checked, it will 
+also search any subdirectories of that directory. For the pattern, do not include the file
+extension .PJC as it will be automatically added.
+* Open File: This will open up a selction dialog to select TMG Project files (.PJC) to be converted
+* Quit: Leave the program
+
+The Files selected and processed will have their information copied into an SQLite database with
+the same root filename as the project, and an .sqlite extension. The format of this database 
+matches that of the TMG database (which is described in a docuement in the doc/)
 
 The program should not disturb the TMG database, but please have a good backup first.
 
-While running, it will print on the console the name of the project/file being
-processed, and a number for every 1000 records that have been processed.
+On the right side of the screen, is a control to allow the selection of the level of detail
+to be placed into a log file named with the name of the project, with a .LOG extension.
 
 If an error occurs while writing the data (possibly due to corruption in the database 
 making the Primary Keys not Unique) an error message will be printed including the 
@@ -80,18 +95,19 @@ Used by *TMG2DB* for each table in the TMG Project, but can also be used for oth
 usages
  
 ## Dependancies:
-+ Python: Developed in Python 3.7, not sure how old of a version of python it
++ Python: Originally developed in Python 3.7, and later developement done on 3.14, not sure how old of a version of python it
 will run in.
 
 + dbfred
- see https://github.com/olemb/dbfread/
- can be installed with: pip3 install dbfread
+ see https://github.com/olemb/dbfread2/
+ can be installed with: pip3 install dbfread2
  
 + pyinstaller (to build the stand alone exe versions)
   see https://www.pyinstaller.org
   can be installed with pip3 install pyinstaller
  
 ## Future Work:
++ Move message currently being sent to the "console" to go to a log field on the screen.
 + Allow specifying a .SQZ file, and if so extract it to a temp directory, and 
 copy that to the Sqlite database next to the .SQZ file.
 + Add indexes (other than the current PRIMARY KEYS specified)
@@ -113,3 +129,5 @@ http://www.whollygenes.com/forums201/index.php?/topic/381-file-structures-for-th
 
 The file itself is at:
 http://www.whollygenes.com/files/tmg9fstr.zip
+
+and a copy is included in the /docs/ directory

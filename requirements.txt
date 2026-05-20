@@ -1,4 +1,1 @@
-pip >=23.0
-dbfread ~=2.0
-setuptools >= 60.1.0
-wheel >= 0.37.1
+dbfread2 >= 0.1.0

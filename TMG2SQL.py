@@ -1,17 +1,17 @@
 # MIT License
 #
 # Copyright (c) 2019 Richard Damon
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in all
 # copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -20,27 +20,52 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 #
-# External Dependency: dbfread
-# Install with pip install dbfread
+# External Dependency: dbfread2
+# install with:
+# python -m pip install -r requirements.txt
+
 """Make an SQLite file from a TMG database set"""
 
-import argparse
 import configparser
 import datetime
-import dbfread
+from dbfread2 import DBF
 from fnmatch import fnmatch
-# import glob
 import logging
 import os
 from pathlib import Path
 from pprint import pformat
 import sqlite3
-import sys
+
+import tkinter as tk
+from tkinter import ttk
+from tkinter import Tk
+from tkinter import IntVar
+from tkinter import StringVar
+from tkinter.filedialog import askopenfilenames
+from tkinter.filedialog import askdirectory
+from tkinter.ttk import Checkbutton
+from tkinter.ttk import Entry
+from tkinter.ttk import Frame
+from tkinter.ttk import Button
+from tkinter.ttk import Label
+from tkinter.ttk import Radiobutton
 
 LOG = logging.getLogger(__name__)
-args = argparse.Namespace()     # Object with options,
 
-Version = "0.1.2"
+# Globals for options
+#Progress = None
+#file = None
+
+Version = "0.2.0"
+
+root = Tk()
+pattern = StringVar(value="*")
+recursive = IntVar(value=1)
+project = StringVar(value="Project")
+progress_file = StringVar()
+progress = StringVar()
+log_level = IntVar(value=logging.WARNING)
+
 
 
 def _(x):
@@ -492,7 +517,7 @@ def do_sql(cursor, statement, parms=None):
     """Execute an SQL command"""
     if parms is None:
         # DDL statements
-        LOG.info(statement)
+        LOG.debug(statement)
         cursor.execute(statement)
     else:
         # DML Statements
@@ -502,7 +527,7 @@ def do_sql(cursor, statement, parms=None):
 
 def show(*words):
     """Print a line of test from parameters"""
-    LOG.info('  ' + ' '.join(str(word) for word in words))
+    LOG.debug('  ' + ' '.join(str(word) for word in words))
 
 
 def show_field(field):
@@ -529,19 +554,19 @@ def copy_dbf(filename, tbl: str, conn, info=None):
     if info is None:
         info = {}
     print(filename, '', end='')
-    LOG.warning(f"\n{filename}")
-    LOG.info(pformat(info))
-    dbf = dbfread.DBF(filename)
+    LOG.info(f"\n{filename}")
+    LOG.debug(pformat(info))
+    dbf = DBF(filename)
     cursor = conn.cursor()
     tablename = dbf.name    # Name the tables in the SQL after the name of the DBF
     table_map[tbl] = tablename
 
-    if args.verbose > 0:
+    if log_level.get() == logging.DEBUG:
         show_table(dbf)
     do_sql(cursor, 'drop table if exists %s' % tablename)
     field_types = {}
     for field in dbf.fields:
-        field_types[field.name] = typemap.get(field.type, 'TEXT')  
+        field_types[field.name] = typemap.get(field.type, 'TEXT')
     #
     # Create the table
     #
@@ -631,14 +656,14 @@ def copy_dbf(filename, tbl: str, conn, info=None):
         else:
             LOG.error(f'TODO Index: {index}')
 
-    LOG.info(pformat(info))
+    LOG.debug(pformat(info))
 
     # Create data rows
     refs = ', '.join([':' + f for f in dbf.field_names])
     sql = 'insert into "%s" values (%s)' % (tablename, refs)
     LOG.debug(sql)
     recno = 0
-    progress = 1000
+    progress_interval = 1000
     for rec in dbf:
         # Convert Foreign Keys 0 to NULL
         if fkeys is not None:
@@ -664,13 +689,14 @@ def copy_dbf(filename, tbl: str, conn, info=None):
             LOG.error(f"{err}: {rec}")
 
         recno += 1
-        if (recno % progress) == 0:
-            num = recno // progress
+        if (recno % progress_interval) == 0:
+            num = recno // progress_interval
             if num % 10 == 0:
                 print('', num, '', end='')
             else:
                 print(num % 10, end='')
     conn.commit()
+    LOG.info(f'Records: {recno}')
     print('')  # Add a return
 
     if fkeys is not None:
@@ -696,7 +722,7 @@ def copy_dbf(filename, tbl: str, conn, info=None):
                         todo = True
                         ckey[key] = ( ref_table, ref_col)
         if todo:
-            LOG.error(f'TODO Complex Foreign Keys: \n{pformat(ckey)}')
+            LOG.info(f'TODO Complex Foreign Keys: \n{pformat(ckey)}')
 
 def tmg2db(projname, conn):
     """ Convert a TMG Project to a SQL Database
@@ -709,7 +735,7 @@ def tmg2db(projname, conn):
     table_map.clear()
 
     config = configparser.ConfigParser()
-    LOG.warning(config.read(projname))
+    LOG.debug(config.read(projname))
     tablename = projname.stem + 'pjc'
     cursor = conn.cursor()
     conn.row_factory = sqlite3.Row
@@ -717,7 +743,7 @@ def tmg2db(projname, conn):
     sql = '''CREATE TABLE "%s" ("section" 'TEXT', "key" 'TEXT', "value" 'TEXT')''' % (tablename,)
     do_sql(cursor, sql)
     sql = '''INSERT INTO "%s" VALUES (:section, :key, :value)''' % (tablename,)
-# TODO Read the pjc file and put it into a table in the database of Group / key / value    
+# TODO Read the pjc file and put it into a table in the database of Group / key / value
     for section in config.sections():
         for key in config[section]:
             do_sql(cursor, sql, {"section": section, "key": key, "value": str(config[section][key])})
@@ -729,6 +755,8 @@ def tmg2db(projname, conn):
     pat = (base + '*.dbf').upper()
     for tbl in table_info.keys():
         file = path.joinpath(base + tbl + ".dbf")
+        progress_file.set(progress_file.get() + tbl + " ")
+        root.update()
         if file.exists():
             copy_dbf(file, tbl, conn, table_info[tbl])
         else:
@@ -757,13 +785,21 @@ def tmg2sqlite(projname):
     Tables within the database have names matching the names of the .dbf files
     uses: https://github.com/olemb/dbfread/
     """
-    print(projname)
+
+    project.set(projname)
+    progress_file.set("")
+    root.update()
     path = Path(projname)
     path.resolve()
+    print(projname)
     if not path.exists():
         print("File "+projname+" Doesn't Exist")
         return
     sdb = path.with_suffix('.sqlite')
+    logfile = path.with_suffix('.log')
+    print(logfile)
+    handler = logging.FileHandler(filename=logfile, mode='w')
+    LOG.addHandler(handler)
     # Allow options of other types of output
     # TMG Seems to only use N fields for integers, and Sqlite will still store floats as floats
     typemap["N"] = "INTEGER"
@@ -771,6 +807,8 @@ def tmg2sqlite(projname):
     cursor = conn.cursor()
     do_sql(cursor, 'PRAGMA foreign_keys = OFF')     # While we are processing ignore Foreign Key Errors
     tmg2db(path, conn)
+
+    LOG.removeHandler(handler)
 
 
 def find_file(path: Path, pat: str):
@@ -783,76 +821,61 @@ def find_file(path: Path, pat: str):
             pass
         elif os.path.isdir(fullname):
             print("\nDir: ", filename)
-            LOG.warning(f"Dir {filename}")
-            if args.recursive:
+            LOG.info(f"Dir {filename}")
+            if recursive.get() > 0:
                 find_file(fullname, pat)
         elif fnmatch(filename.upper(), pat):
             print('File: ', filename)
             LOG.warning(f"\nFile {filename}")
             tmg2sqlite(path.joinpath(filename))
 
+def open_directory():
+    directory = askdirectory()
+    if directory:
+        level = log_level.get()
+        if level > 0:
+            LOG.setLevel(level)
+        directory = Path(directory)
+        # TODO only add if not added by user. What to do for other extensions?
+        pat = pattern.get() + ".PJC"
+        find_file(directory, pat)
 
-# Main Function
-# Provides the implementation of the package as a utility
-#
-# Usage;
-# TMG2SQL project.pjc
-#
-# Converts the specified project (wild cards allowed) to an Sqlite database
-# with the same root name as the project.
-#
-# TODO: could use a lot of work to make  a more general utility
+def open_file():
+    patterns = [
+        ("Project Files", "*.pjc"),
+    ]
+    level = log_level.get()
+    if level > 0:
+        LOG.setLevel(level)
+    paths = askopenfilenames(filetypes=patterns)
+
+    for path in paths:
+        tmg2sqlite(Path(path))
+
 def main():
-    """Main Function"""
+    frm = Frame(root, padding = 10)
+    frm.grid()
+    Button(frm, text="Open Directory", command=open_directory).grid(sticky="W", column=0, row=0)
+    Label(frm, text="Pattern:").grid(sticky="E", column=1, row=0)
+    Entry(frm, textvariable=pattern, width=12).grid(column=2, row=0)
 
-    # Output File & Type
-    print("TMG2Sqlite Version: ", Version)
+    Button(frm, text="Open File", command=open_file).grid(sticky="W", column=0, row=1)
+    Checkbutton(frm, text="Recursive", variable=recursive).grid(column=2, row=1)
+    Button(frm, text="Quit", command=root.destroy).grid(sticky="W", column=0, row=9)
 
-    # TODO add argument processing
-    parser = argparse.ArgumentParser(description='TMG2SQL')
-    parser.add_argument('file', nargs='*', help=_('Files to convert'), default="*.pjc")
-    parser.add_argument('-d', '--dir', help=_('Directory to process'), default=".")
-    parser.add_argument('-l', '--log', action='store_true', help=_('Use Log File'))
-    parser.add_argument('-r', '--recursive', action='store_true', help=_('Recursively process Directories'))
-    parser.add_argument('-v', '--verbose', action="count", help=_('Verbose Mode'))
+    Label(frm, textvariable=project, width=100).grid(column=0, columnspan=10, row=10)
+    Label(frm, textvariable=progress_file, width=100).grid(column=0, columnspan=10, row=11)
 
-    parser.parse_args(namespace=args)
-    if not isinstance(args.file, list):
-        args.file = [args.file]
-
-    # Resolve the starting Directory
-    base_dir = Path(args.dir).resolve()
-    # process file patterns one at a time:
-
-    if args.log:
-        log_file = Path(base_dir, "TMG2SQL.log")
-        try:
-            os.remove(log_file)
-        except FileNotFoundError:
-            pass
-        fh = logging.FileHandler(log_file)
-        # message_format = config['Log'].get('msg.' + cmd.lower(), FILE_FORMAT)
-        # ff = logging.Formatter(message_format)
-        # fh.setFormatter(ff)
-        LOG.addHandler(fh)
-
-    levels = [logging.WARNING, logging.INFO, logging.DEBUG]
-    max_verb = len(levels) - 1
-    if args.verbose is None:
-        args.verbose = 0
-    if args.verbose > max_verb:
-        args.verbose = max_verb
-
-    LOG.setLevel(levels[args.verbose])
-
-    for filename in args.file:
-        filename = Path(base_dir / filename).resolve()
-        path = filename.parent
-        pat = filename.name.upper()
-        find_file(path, pat)
+    Label(frm, text="Logging:").grid(sticky="E", column=4, row=0)
+    Radiobutton(frm, text="None", variable=log_level, value=-1).grid(sticky="W", column=5, row=0)
+    Radiobutton(frm, text="Errors", variable=log_level, value=logging.ERROR).grid(sticky="W", column=5, row=1)
+    Radiobutton(frm, text="Warnings", variable=log_level, value=logging.WARNING).grid(sticky="W", column=5, row=2)
+    Radiobutton(frm, text="Info", variable=log_level, value=logging.INFO).grid(sticky="W", column=5, row=4)
+    Radiobutton(frm, text="Debug", variable=log_level, value=logging.DEBUG).grid(sticky="W", column=5, row=5)
+    root.mainloop()
 
 
 if __name__ == "__main__":
-    if 'idlelib.run' in sys.modules:
-        sys.argv.extend(('../Family/*.pjc',))   # Default Arguments to use in IDLE
+    # if 'idlelib.run' in sys.modules:
+    #     sys.argv.extend(('../Family/*.pjc',))   # Default Arguments to use in IDLE
     main()
