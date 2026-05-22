@@ -1,1 +1,1 @@
-dbfread2 >= 0.1.0
+dbfread >= 2.0

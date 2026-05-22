@@ -28,7 +28,7 @@
 
 import configparser
 import datetime
-from dbfread2 import DBF
+from dbfread import DBF
 from fnmatch import fnmatch
 import logging
 import os
@@ -52,11 +52,12 @@ from tkinter.ttk import Radiobutton
 
 LOG = logging.getLogger(__name__)
 
+ERROR_CHAR = '�'
 # Globals for options
 #Progress = None
 #file = None
 
-Version = "0.2.0"
+Version = "0.2.1"
 
 root = Tk()
 pattern = StringVar(value="*")
@@ -93,6 +94,7 @@ FOREIGN = 'Foreign'             # Key for dictionary of Foreign Keys. Key of dic
 INDEX = 'Index'                 # Key for set of Columns to Index
 UNIQUE = 'Unique'               # Key for set of Columns to Define a Unique index
 DATE = 'Date'                   # Marks fields with TMG Date (May want to create a translated version of the date)
+OPTIONAL = 'Optional'           # Key to make a table as optional
 
 PERSON = ('$', 'PER_NO')        # Link to a Person
 DSID = ('D', 'DSID')            # Link to a Dataset
@@ -498,10 +500,11 @@ table_info = {
             # Check RLPER1, RLPER2 are the principals of ID_EVENT
         },
 
-    'PICK1':        # NOT DOCUMENTED
+    'PICK1':        # NOT DOCUMENTED, Seems Optional
 
         {
             TABLE_NAME: 'Pick List',
+            OPTIONAL: True,
             FOREIGN:    {
                 'REF_ID':   ('$', 'REF_ID'),
                 'FATHER':   ('$', 'REF_ID'),
@@ -556,7 +559,7 @@ def copy_dbf(filename, tbl: str, conn, info=None):
     print(filename, '', end='')
     LOG.info(f"\n{filename}")
     LOG.debug(pformat(info))
-    dbf = DBF(filename)
+    dbf = DBF(filename, char_decode_errors='replace')
     cursor = conn.cursor()
     tablename = dbf.name    # Name the tables in the SQL after the name of the DBF
     table_map[tbl] = tablename
@@ -672,7 +675,12 @@ def copy_dbf(filename, tbl: str, conn, info=None):
                 if isinstance(col, str):
                     if rec[col] == 0:
                         rec[col] = None
+        flag = True
         for col in rec.keys():
+            if flag and isinstance(rec[col], str):
+                if ERROR_CHAR in rec[col]:
+                    LOG.warning(f"Character Error: {pformat(rec)}")
+                    flag = False    # Print only once per record, even if multiple fields
             if isinstance(rec[col], datetime.date):
                 rec[col] = rec[col].strftime('%Y-%m-%d')
             elif isinstance(rec[col], datetime.datetime):
@@ -760,8 +768,9 @@ def tmg2db(projname, conn):
         if file.exists():
             copy_dbf(file, tbl, conn, table_info[tbl])
         else:
-            print("Missing:", file)
-            LOG.error("Missing File {file}")
+            if not (table_info[tbl].get(OPTIONAL, False)):
+                print("Missing:", file)
+                LOG.error("Missing File {file}")
 
     # Process any unknown file type
     for fname in os.listdir(projname.parent):
@@ -862,6 +871,7 @@ def main():
     Button(frm, text="Open File", command=open_file).grid(sticky="W", column=0, row=1)
     Checkbutton(frm, text="Recursive", variable=recursive).grid(column=2, row=1)
     Button(frm, text="Quit", command=root.destroy).grid(sticky="W", column=0, row=9)
+    Label(frm, text="Version: "+Version).grid(sticky="W", column=1, row=9)
 
     Label(frm, textvariable=project, width=100).grid(column=0, columnspan=10, row=10)
     Label(frm, textvariable=progress_file, width=100).grid(column=0, columnspan=10, row=11)

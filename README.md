@@ -99,8 +99,8 @@ usages
 will run in.
 
 + dbfred
- see https://github.com/olemb/dbfread2/
- can be installed with: pip3 install dbfread2
+ see https://github.com/olemb/dbfread/
+ can be installed with: pip3 install dbfread
  
 + pyinstaller (to build the stand alone exe versions)
   see https://www.pyinstaller.org
